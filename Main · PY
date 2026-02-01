@@ -1,0 +1,441 @@
+import streamlit as st
+import pandas as pd
+import requests
+from datetime import date
+
+# ======================================================
+# CONFIGURAÇÃO
+# ======================================================
+st.set_page_config(page_title="Lian Car | Gestão", page_icon="🧼", layout="wide")
+
+# Configuração do Supabase
+SUPABASE_URL = st.secrets["supabase"]["url"]
+SUPABASE_KEY = st.secrets["supabase"]["key"]
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
+
+
+# ======================================================
+# FUNÇÕES DE API SUPABASE
+# ======================================================
+
+def carregar_dados(tabela):
+    """Carrega todos os dados de uma tabela."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{tabela}?select=*&order=id"
+        response = requests.get(url, headers=HEADERS)
+        
+        if response.status_code == 200:
+            data = response.json()
+            df = pd.DataFrame(data)
+            if not df.empty and 'id' in df.columns:
+                df = df.drop(columns=['id'])
+            return df
+        else:
+            st.error(f"❌ Erro ao carregar {tabela}: {response.status_code}")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Erro: {e}")
+        return pd.DataFrame()
+
+
+def inserir_dado(tabela, dados):
+    """Insere um registro em uma tabela."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{tabela}"
+        response = requests.post(url, headers=HEADERS, json=dados)
+        
+        if response.status_code in [200, 201]:
+            st.success(f"✅ Salvo em '{tabela}' com sucesso!")
+            return True
+        else:
+            st.error(f"❌ Erro ao inserir: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        st.error(f"❌ Erro: {e}")
+        return False
+
+
+def atualizar_dado(tabela, id_registro, dados):
+    """Atualiza um registro baseado no ID."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{tabela}?id=eq.{id_registro}"
+        response = requests.patch(url, headers=HEADERS, json=dados)
+        
+        if response.status_code == 200:
+            st.success("✅ Atualizado com sucesso!")
+            return True
+        else:
+            st.error(f"❌ Erro ao atualizar: {response.status_code}")
+            return False
+    except Exception as e:
+        st.error(f"❌ Erro: {e}")
+        return False
+
+
+def buscar_com_filtro(tabela, filtro_campo, filtro_valor):
+    """Busca dados com filtro."""
+    try:
+        url = f"{SUPABASE_URL}/rest/v1/{tabela}?{filtro_campo}=neq.{filtro_valor}&select=*&order=id"
+        response = requests.get(url, headers=HEADERS)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return []
+    except Exception:
+        return []
+
+
+# ======================================================
+# ESTILO CSS
+# ======================================================
+st.markdown("""
+<style>
+    .stApp { background: #020617; color: #e5e7eb; }
+    [data-testid="stMetric"] { 
+        background: #0f172a; 
+        border: 1px solid #1e293b; 
+        border-radius: 12px; 
+        padding: 15px;
+    }
+    .card-patio { 
+        background: #1e293b; 
+        padding: 20px; 
+        border-radius: 15px; 
+        border-left: 6px solid #0ea5e9; 
+        margin-bottom: 10px; 
+    }
+    .stButton>button { 
+        background: linear-gradient(135deg, #0ea5e9, #38bdf8); 
+        color: white; 
+        font-weight: bold; 
+        border-radius: 10px;
+        border: none;
+        padding: 10px 24px;
+    }
+    .stButton>button:hover {
+        background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ======================================================
+# LOGIN
+# ======================================================
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+
+if not st.session_state.logado:
+    st.title("🔐 Acesso Lian Car")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        u = st.text_input("Usuário")
+        p = st.text_input("Senha", type="password")
+        
+        if st.button("Entrar", use_container_width=True):
+            if u == "admin" and p == "admin123":
+                st.session_state.logado = True
+                st.rerun()
+            else:
+                st.error("❌ Usuário ou senha inválidos")
+    st.stop()
+
+
+# ======================================================
+# PÁGINAS
+# ======================================================
+
+def dashboard():
+    st.title("📊 Painel de Controle")
+    
+    # Carrega dados
+    df_ag = carregar_dados("agendamentos")
+    df_dp = carregar_dados("despesas")
+    
+    # Calcula métricas
+    receita = 0
+    if not df_ag.empty and 'status' in df_ag.columns:
+        concluidos = df_ag[df_ag['status'] == 'Concluído']
+        if not concluidos.empty:
+            receita = pd.to_numeric(concluidos['valor'], errors='coerce').sum()
+    
+    gastos = 0
+    if not df_dp.empty and 'valor' in df_dp.columns:
+        gastos = pd.to_numeric(df_dp['valor'], errors='coerce').sum()
+    
+    lucro = receita - gastos
+    
+    # Exibe métricas
+    c1, c2, c3 = st.columns(3)
+    c1.metric("💰 Receita", f"R$ {receita:,.2f}")
+    c2.metric("📉 Despesas", f"R$ {gastos:,.2f}")
+    c3.metric("📈 Lucro", f"R$ {lucro:,.2f}")
+    
+    # Resumo visual
+    st.divider()
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📅 Últimos Agendamentos")
+        if not df_ag.empty:
+            st.dataframe(df_ag.head(5), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum agendamento ainda")
+    
+    with col2:
+        st.subheader("💸 Últimas Despesas")
+        if not df_dp.empty:
+            st.dataframe(df_dp.head(5), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhuma despesa registrada")
+
+
+def servicos():
+    st.title("🛠️ Serviços")
+    
+    with st.form("form_servico"):
+        col1, col2 = st.columns(2)
+        nome = col1.text_input("Nome do Serviço")
+        valor = col2.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        
+        if st.form_submit_button("💾 Cadastrar Serviço"):
+            if not nome:
+                st.warning("⚠️ Nome é obrigatório")
+            else:
+                if inserir_dado("servicos", {"nome": nome, "valor": valor}):
+                    st.rerun()
+    
+    st.divider()
+    st.subheader("📋 Serviços Cadastrados")
+    df = carregar_dados("servicos")
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum serviço cadastrado")
+
+
+def agendamentos():
+    st.title("📅 Agendamentos")
+    
+    # Carrega serviços disponíveis
+    df_servicos = carregar_dados("servicos")
+    lista_servicos = df_servicos['nome'].tolist() if not df_servicos.empty else []
+    
+    if not lista_servicos:
+        st.warning("⚠️ Cadastre serviços primeiro")
+        st.stop()
+    
+    with st.form("form_agendamento"):
+        col1, col2 = st.columns(2)
+        cliente = col1.text_input("Cliente")
+        placa = col2.text_input("Placa")
+        
+        servico = st.selectbox("Serviço", lista_servicos)
+        valor = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        
+        if st.form_submit_button("📝 Confirmar Agendamento"):
+            if not cliente or not placa:
+                st.warning("⚠️ Cliente e Placa são obrigatórios")
+            else:
+                dados = {
+                    "data": date.today().isoformat(),
+                    "cliente": cliente,
+                    "placa": placa,
+                    "servico": servico,
+                    "valor": valor,
+                    "status": "Agendado"
+                }
+                if inserir_dado("agendamentos", dados):
+                    st.rerun()
+    
+    st.divider()
+    st.subheader("📋 Agendamentos")
+    df = carregar_dados("agendamentos")
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum agendamento")
+
+
+def patio():
+    st.title("🚗 Pátio Operacional")
+    
+    # Busca agendamentos pendentes
+    pendentes = buscar_com_filtro("agendamentos", "status", "Concluído")
+    
+    if not pendentes:
+        st.info("✨ Pátio vazio")
+    else:
+        for row in pendentes:
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown(f"""
+                <div class='card-patio'>
+                    <b>🚗 {row['placa']}</b><br>
+                    👤 {row['cliente']}<br>
+                    🔧 {row['servico']}<br>
+                    💰 R$ {row['valor']:.2f}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                novo_status = st.selectbox(
+                    "Status",
+                    ["Agendado", "Lavando", "Concluído"],
+                    index=["Agendado", "Lavando", "Concluído"].index(row['status']),
+                    key=f"status_{row['id']}"
+                )
+                
+                if novo_status != row['status']:
+                    if atualizar_dado("agendamentos", row['id'], {"status": novo_status}):
+                        st.rerun()
+
+
+def financeiro():
+    st.title("💰 Financeiro")
+    
+    # Formulário de despesa
+    with st.form("form_despesa"):
+        st.subheader("➕ Lançar Despesa")
+        col1, col2 = st.columns(2)
+        descricao = col1.text_input("Descrição")
+        valor = col2.number_input("Valor (R$)", min_value=0.0, step=10.0)
+        
+        if st.form_submit_button("💸 Registrar Despesa"):
+            if not descricao or valor <= 0:
+                st.warning("⚠️ Preencha todos os campos")
+            else:
+                dados = {
+                    "data": date.today().isoformat(),
+                    "descricao": descricao,
+                    "valor": valor
+                }
+                if inserir_dado("despesas", dados):
+                    st.rerun()
+    
+    st.divider()
+    
+    # Extrato
+    st.subheader("📊 Extrato")
+    
+    df_ag = carregar_dados("agendamentos")
+    df_dp = carregar_dados("despesas")
+    
+    # Monta extrato
+    extrato = []
+    
+    if not df_ag.empty:
+        concluidos = df_ag[df_ag['status'] == 'Concluído']
+        for _, row in concluidos.iterrows():
+            extrato.append({
+                'data': row['data'],
+                'descricao': f"🟢 {row['cliente']}",
+                'valor': f"R$ {row['valor']:.2f}",
+                'tipo': 'Entrada'
+            })
+    
+    if not df_dp.empty:
+        for _, row in df_dp.iterrows():
+            extrato.append({
+                'data': row['data'],
+                'descricao': f"🔴 {row['descricao']}",
+                'valor': f"R$ {row['valor']:.2f}",
+                'tipo': 'Saída'
+            })
+    
+    if extrato:
+        df_extrato = pd.DataFrame(extrato)
+        df_extrato = df_extrato.sort_values('data', ascending=False)
+        st.dataframe(df_extrato, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum lançamento ainda")
+
+
+def estoque():
+    st.title("📦 Estoque")
+    
+    with st.form("form_estoque"):
+        col1, col2 = st.columns(2)
+        item = col1.text_input("Item")
+        qtd = col2.number_input("Quantidade", min_value=0, step=1)
+        
+        if st.form_submit_button("➕ Adicionar Item"):
+            if not item:
+                st.warning("⚠️ Nome do item é obrigatório")
+            else:
+                if inserir_dado("estoque", {"item": item, "qtd": qtd}):
+                    st.rerun()
+    
+    st.divider()
+    st.subheader("📋 Itens em Estoque")
+    df = carregar_dados("estoque")
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Estoque vazio")
+
+
+def fornecedores():
+    st.title("🏭 Fornecedores")
+    
+    with st.form("form_fornecedor"):
+        nome = st.text_input("Nome")
+        col1, col2 = st.columns(2)
+        contato = col1.text_input("Contato")
+        produto = col2.text_input("Produto")
+        
+        if st.form_submit_button("💾 Salvar Fornecedor"):
+            if not nome or not contato:
+                st.warning("⚠️ Nome e Contato são obrigatórios")
+            else:
+                dados = {"nome": nome, "contato": contato, "produto": produto}
+                if inserir_dado("fornecedores", dados):
+                    st.rerun()
+    
+    st.divider()
+    st.subheader("📋 Fornecedores Cadastrados")
+    df = carregar_dados("fornecedores")
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum fornecedor cadastrado")
+
+
+# ======================================================
+# NAVEGAÇÃO
+# ======================================================
+st.sidebar.title("🧼 Lian Car")
+st.sidebar.markdown("---")
+
+menu = st.sidebar.radio(
+    "Navegação",
+    ["Dashboard", "Serviços", "Agendamentos", "Pátio", "Financeiro", "Estoque", "Fornecedores"],
+    label_visibility="collapsed"
+)
+
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Sair"):
+    st.session_state.logado = False
+    st.rerun()
+
+# Mapeia páginas
+paginas = {
+    "Dashboard": dashboard,
+    "Serviços": servicos,
+    "Agendamentos": agendamentos,
+    "Pátio": patio,
+    "Financeiro": financeiro,
+    "Estoque": estoque,
+    "Fornecedores": fornecedores
+}
+
+# Executa página selecionada
+paginas[menu]()
