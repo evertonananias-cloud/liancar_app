@@ -1,0 +1,80 @@
+# 🚀 Setup Lian Car - Versão Supabase
+
+## ✅ O que você já fez:
+- [x] Criou projeto no Supabase
+- [x] Executou o SQL para criar as tabelas
+- [x] Pegou a URL e anon key
+
+## 📁 Estrutura dos arquivos:
+
+```
+seu-repositorio/
+├── .streamlit/
+│   └── secrets.toml     ← Cole o conteúdo do arquivo secrets.toml aqui
+├── main.py              ← Substitua pelo novo
+└── requirements.txt     ← Substitua pelo novo
+```
+
+## 🔧 Passo a passo final:
+
+### 1. Atualize os arquivos no GitHub
+
+**a) main.py** - Substitua o arquivo completo
+
+**b) requirements.txt** - Substitua com:
+```
+streamlit
+pandas
+requests
+```
+
+**c) .streamlit/secrets.toml** - Cole exatamente isso:
+```toml
+[supabase]
+url = "https://swtiruvzfbodwjenmqqs.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3dGlydXZ6ZmJvZHdqZW5tcXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Nzc4NjEsImV4cCI6MjA4NTQ1Mzg2MX0.KkqrVQui4JItIuYFssmBnraeoF8MGjYap_-t90OP75w"
+```
+
+### 2. No Streamlit Cloud
+
+Se você estiver usando Streamlit Cloud, **NÃO** coloque o `secrets.toml` no repositório.
+
+Em vez disso:
+1. Vá em **App settings** (canto inferior direito)
+2. Clique em **Secrets**
+3. Cole isso:
+```toml
+[supabase]
+url = "https://swtiruvzfbodwjenmqqs.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3dGlydXZ6ZmJvZHdqZW5tcXFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4Nzc4NjEsImV4cCI6MjA4NTQ1Mzg2MX0.KkqrVQui4JItIuYFssmBnraeoF8MGjYap_-t90OP75w"
+```
+4. Salve
+
+### 3. Deploy
+
+- Faça commit das mudanças
+- O Streamlit Cloud vai detectar e fazer redeploy automaticamente
+- Aguarde ~2 minutos
+
+## 🎯 O que essa versão faz diferente:
+
+✅ Usa **requests HTTP** direto (sem bibliotecas problemáticas)  
+✅ **Zero dependências externas** além do requests  
+✅ **100% compatível** com Python 3.13  
+✅ **Dados persistentes** no Supabase (não somem mais!)  
+✅ Tratamento de erro em **todas** as operações  
+
+## 🔐 Login padrão:
+- Usuário: `admin`
+- Senha: `admin123`
+
+## ⚠️ Se der erro:
+
+1. Confira se as tabelas foram criadas no Supabase (SQL Editor)
+2. Confira se os secrets estão corretos (URL e key)
+3. Confira se o requirements.txt tem apenas: streamlit, pandas, requests
+4. Me manda o erro exato que eu ajudo!
+
+---
+
+**Agora vai funcionar! 🚀**
